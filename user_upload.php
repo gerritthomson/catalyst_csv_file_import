@@ -131,7 +131,10 @@ function storeInDb($data){
                           values 
                           ("%s","%s","%s")',
                             getTableName(),
-                            $data['name'],$data['surname'],$data['email']);
+                            mysqli_real_escape_string($dbHandle,$data['name']),
+                            mysqli_real_escape_string($dbHandle,$data['surname']),
+                            mysqli_real_escape_string($dbHandle,$data['email'])
+                    );
 //    printf("DEBUG:%s\n", $sql);
     $result = mysqli_query($dbHandle, $sql);
     if(mysqli_errno($dbHandle) != 0){
