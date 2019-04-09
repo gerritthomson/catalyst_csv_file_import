@@ -78,7 +78,11 @@ $fp = fopen($fileName, 'r');
 while($record = fgetcsv($fp)){
     $numberOfRecordsRead ++;
 
-    print_r($record);
+    // print_r($record);
+    if ((count($record) == 1) && empty($record[0])){
+        // skip balnk lines
+        continue;
+    }
     if(count($record) != REQUIRED_FIELD_COUNT){
         printf("Invalid number of fields [%s] read, expected [%s] fields\n", count($record), REQUIRED_FIELD_COUNT);
         continue;
