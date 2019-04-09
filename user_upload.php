@@ -41,8 +41,12 @@ define('DB_USER', array_key_exists('u',$options) ? $options['u'] : DB_DEFAULT_US
 define('DB_PASSWORD', array_key_exists('p',$options) ? $options['p'] : DB_DEFAULT_PASSWORD);
 define('DB_DATABASE', array_key_exists('d',$options) ? $options['d'] : DB_DEFAULT_DATABASE);
 
+if(array_key_exists('dry_run', $options)) {
+    $dry_run_flag = true;
+}
+
 if(array_key_exists('create', $options)){
-    echo "Creting user table\n";
+    echo "Creating user table\n";
     createUsersTable();
     echo "User table created\n";
     exit();
@@ -60,8 +64,8 @@ $first_record_is_headers = true;
 
 function isEmailValid($emailAddress){
     $valid = preg_match(EMAIL_VALIDATION_REGEX , $emailAddress);
-    print_r($emailAddress);
-    print_r($valid);
+//    print_r($emailAddress);
+//    print_r($valid);
     return $valid;
 }
 
@@ -101,6 +105,25 @@ function getDbHandle(){
     return $dbHandle;
 }
 
+function beginTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_autocommit($dbHandle,FALSE);
+    mysqli_begin_transaction($dbHandle);
+    echo "Transaction begun\n";
+}
+
+function commitTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_commit($dbHandle);
+    echo "transaction Comitted\n";
+}
+
+function rollbackTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_rollback($dbHandle);
+    echo "Transaction Rolled Back\n";
+}
+
 function storeInDb($data){
     $dbHandle = getDbHandle();
     $sql = sprintf('INSERT INTO %s 
@@ -109,17 +132,21 @@ function storeInDb($data){
                           ("%s","%s","%s")',
                             getTableName(),
                             $data['name'],$data['surname'],$data['email']);
-    printf("DEBUG:%s\n", $sql);
+//    printf("DEBUG:%s\n", $sql);
     $result = mysqli_query($dbHandle, $sql);
     if(mysqli_errno($dbHandle) != 0){
         $errorList = mysqli_error_list($dbHandle);
         print_r($errorList);
-        exit;
+        return false;
     }
-
+    return true;
 }
 
+
+beginTransaction();
+
 $numberOfRecordsRead = 0;
+
 $fp = fopen($fileName, 'r');
 while($record = fgetcsv($fp)){
     $numberOfRecordsRead ++;
@@ -143,6 +170,11 @@ while($record = fgetcsv($fp)){
         continue;
     }
     // Store in db;
-    storeInDb($dataToStore);
+    $result = storeInDb($dataToStore);
 }
 fclose($fp);
+if($dry_run_flag == TRUE){
+    rollbackTransaction();
+    exit();
+}
+commitTransaction();
