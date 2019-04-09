@@ -34,11 +34,19 @@ if(array_key_exists('help', $options)){
     printF("Usage: %s --file[filename] [--dry_run] -u[db use name] -h[db host name] -p[db password] -d[db database name] [--help]\n", __FILE__);
     exit;
 }
+
 // Database Options
 define('DB_HOST', array_key_exists('h',$options) ? $options['h'] : DB_DEFAULT_HOST);
 define('DB_USER', array_key_exists('u',$options) ? $options['u'] : DB_DEFAULT_USER);
 define('DB_PASSWORD', array_key_exists('p',$options) ? $options['p'] : DB_DEFAULT_PASSWORD);
 define('DB_DATABASE', array_key_exists('d',$options) ? $options['d'] : DB_DEFAULT_DATABASE);
+
+if(array_key_exists('create', $options)){
+    echo "Creting user table\n";
+    createUsersTable();
+    echo "User table created\n";
+    exit();
+}
 
 $cmdlineFileName = $options['file'];
 $fileName = $cmdlineFileName;
@@ -55,6 +63,23 @@ function isEmailValid($emailAddress){
     print_r($emailAddress);
     print_r($valid);
     return $valid;
+}
+
+function createUsersTable(){
+    $dbHandle = getDbHandle();
+    $result = mysqli_query($dbHandle, 'DROP TABLE if exists users');
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        exit;
+    }
+    $result = mysqli_query($dbHandle, 'CREATE TABLE `catalyst_test`.`users` ( `email` VARCHAR(255) NOT NULL , `name` VARCHAR(255) NULL DEFAULT NULL , `surname` VARCHAR(255) NULL DEFAULT NULL , PRIMARY KEY (`email`(255))) ENGINE = InnoDB');
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        exit;
+    }
+
 }
 
 function transformData($record){
@@ -77,7 +102,7 @@ function getDbHandle(){
 }
 
 function storeInDb($data){
-//    $dbHandle = getDbHandle();
+    $dbHandle = getDbHandle();
     $sql = sprintf('INSERT INTO %s 
                           (name,surname,email)
                           values 
@@ -85,6 +110,12 @@ function storeInDb($data){
                             getTableName(),
                             $data['name'],$data['surname'],$data['email']);
     printf("DEBUG:%s\n", $sql);
+    $result = mysqli_query($dbHandle, $sql);
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        exit;
+    }
 
 }
 
