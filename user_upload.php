@@ -14,11 +14,146 @@ define('EMAIL_VALIDATION_REGEX','/^(?!(?:(?:\x22?\x5C[\x00-\x7E]\x22?)|(?:\x22?[
 define('DEFAULT_FILE_NAME','users.csv');
 define('REQUIRED_FIELD_COUNT', 3);
 define('DB_TABLE_NAME', 'users');
-define('DB_DEFAULT_USER_NAME', 'root');
+define('DB_DEFAULT_USER', 'root');
 define('DB_DEFAULT_PASSWORD', 'toor');
 define('DB_DEFAULT_HOST', 'localhost');
 define('DB_DEFAULT_DATABASE', 'test');
 
+
+/**
+ * Validates an email address according matching the REGEX
+ * @param $emailAddress
+ * @return false|int
+ */
+function isEmailValid($emailAddress){
+    $valid = preg_match(EMAIL_VALIDATION_REGEX , $emailAddress);
+//    print_r($emailAddress);
+//    print_r($valid);
+    return $valid;
+}
+
+/**
+ * Create the data table
+ */
+function createUsersTable(){
+    $dbHandle = getDbHandle();
+    $tableName = getTableName();
+    $result = mysqli_query($dbHandle, sprintf('DROP TABLE if exists %s', $tableName));
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        exit;
+    }
+    $result = mysqli_query($dbHandle, sprintf('CREATE TABLE `%s` 
+                                                        ( `email` VARCHAR(255) NOT NULL , 
+                                                          `name` VARCHAR(255) NULL DEFAULT NULL , 
+                                                          `surname` VARCHAR(255) NULL DEFAULT NULL , 
+                                                          PRIMARY KEY (`email`(255))) 
+                                                          ENGINE = InnoDB',
+                                                    $tableName
+                                            )
+                            );
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        exit;
+    }
+
+}
+
+/**
+ * Apply Transforms to the data prior to being processed.
+ * @param $record
+ * @return array
+ */
+function transformData($record){
+    $returnData = array();
+    $returnData['name'] = ucfirst( trim($record[0]));
+    $returnData['surname'] = ucfirst( trim($record[1]));
+    $returnData['email'] = strtolower( trim($record[2]));
+    return($returnData);
+}
+
+/**
+ * Get the Name of the table.
+ * @return string
+ */
+function getTableName(){
+    return DB_TABLE_NAME;
+}
+
+/**
+ * Get the database connection. Connect if need be.
+ * @return mysqli|null
+ */
+function getDbHandle(){
+    static $dbHandle = null;
+    if(is_null($dbHandle)){
+        $dbHandle = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_DATABASE);
+    }
+    return $dbHandle;
+}
+
+/**
+ * Begin a Transaction. Used to enable Dry Run mode Rollback.
+ */
+function beginTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_autocommit($dbHandle,FALSE);
+    mysqli_begin_transaction($dbHandle);
+    echo "Transaction begun\n";
+}
+
+/**
+ * Commit the Transaction.
+ */
+function commitTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_commit($dbHandle);
+    echo "transaction Comitted\n";
+}
+
+/**
+ * Roll back the Sql transaction. Used to enable Dry Run mode.
+ */
+function rollbackTransaction(){
+    $dbHandle = getDbHandle();
+    mysqli_rollback($dbHandle);
+    echo "Transaction Rolled Back\n";
+}
+
+/**
+ * Store data in the Db.
+ * Uses a constructed sql string.
+ * @param $data
+ * @return bool
+ */
+function storeInDb($data){
+    $dbHandle = getDbHandle();
+    $sql = sprintf('INSERT INTO %s 
+                          (name,surname,email)
+                          values 
+                          ("%s","%s","%s")',
+                            getTableName(),
+                            mysqli_real_escape_string($dbHandle,$data['name']),
+                            mysqli_real_escape_string($dbHandle,$data['surname']),
+                            mysqli_real_escape_string($dbHandle,$data['email'])
+                    );
+//    printf("DEBUG:%s\n", $sql);
+    $result = mysqli_query($dbHandle, $sql);
+    if(mysqli_errno($dbHandle) != 0){
+        $errorList = mysqli_error_list($dbHandle);
+        print_r($errorList);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Begin Run Code
+ */
+
+// Flag used to inidicate if Drt Run mode is in effect
 $dry_run_flag = false;
 
 define('SHORT_OPTIONS','u:h:p:d:');
@@ -43,6 +178,7 @@ define('DB_DATABASE', array_key_exists('d',$options) ? $options['d'] : DB_DEFAUL
 
 if(array_key_exists('dry_run', $options)) {
     $dry_run_flag = true;
+    echo "Dry Run mode\n";
 }
 
 if(array_key_exists('create', $options)){
@@ -59,98 +195,22 @@ if(strpos($cmdlineFileName, DIRECTORY_SEPARATOR) === FALSE){
 }
 
 
-
+// Flag to indicate if first lin of csv file is a header line.
+// First line will be skipped if TRUE;
 $first_record_is_headers = true;
 
-function isEmailValid($emailAddress){
-    $valid = preg_match(EMAIL_VALIDATION_REGEX , $emailAddress);
-//    print_r($emailAddress);
-//    print_r($valid);
-    return $valid;
-}
 
-function createUsersTable(){
-    $dbHandle = getDbHandle();
-    $result = mysqli_query($dbHandle, 'DROP TABLE if exists users');
-    if(mysqli_errno($dbHandle) != 0){
-        $errorList = mysqli_error_list($dbHandle);
-        print_r($errorList);
-        exit;
-    }
-    $result = mysqli_query($dbHandle, 'CREATE TABLE `catalyst_test`.`users` ( `email` VARCHAR(255) NOT NULL , `name` VARCHAR(255) NULL DEFAULT NULL , `surname` VARCHAR(255) NULL DEFAULT NULL , PRIMARY KEY (`email`(255))) ENGINE = InnoDB');
-    if(mysqli_errno($dbHandle) != 0){
-        $errorList = mysqli_error_list($dbHandle);
-        print_r($errorList);
-        exit;
-    }
-
-}
-
-function transformData($record){
-    $returnData = array();
-    $returnData['name'] = ucfirst( trim($record[0]));
-    $returnData['surname'] = ucfirst( trim($record[1]));
-    $returnData['email'] = strtolower( trim($record[2]));
-    return($returnData);
-}
-
-function getTableName(){
-    return DB_TABLE_NAME;
-}
-function getDbHandle(){
-    static $dbHandle = null;
-    if(is_null($dbHandle)){
-        $dbHandle = mysqli_connect(DB_HOST, DB_USER, DB_PASSWORD, DB_DATABASE);
-    }
-    return $dbHandle;
-}
-
-function beginTransaction(){
-    $dbHandle = getDbHandle();
-    mysqli_autocommit($dbHandle,FALSE);
-    mysqli_begin_transaction($dbHandle);
-    echo "Transaction begun\n";
-}
-
-function commitTransaction(){
-    $dbHandle = getDbHandle();
-    mysqli_commit($dbHandle);
-    echo "transaction Comitted\n";
-}
-
-function rollbackTransaction(){
-    $dbHandle = getDbHandle();
-    mysqli_rollback($dbHandle);
-    echo "Transaction Rolled Back\n";
-}
-
-function storeInDb($data){
-    $dbHandle = getDbHandle();
-    $sql = sprintf('INSERT INTO %s 
-                          (name,surname,email)
-                          values 
-                          ("%s","%s","%s")',
-                            getTableName(),
-                            mysqli_real_escape_string($dbHandle,$data['name']),
-                            mysqli_real_escape_string($dbHandle,$data['surname']),
-                            mysqli_real_escape_string($dbHandle,$data['email'])
-                    );
-//    printf("DEBUG:%s\n", $sql);
-    $result = mysqli_query($dbHandle, $sql);
-    if(mysqli_errno($dbHandle) != 0){
-        $errorList = mysqli_error_list($dbHandle);
-        print_r($errorList);
-        return false;
-    }
-    return true;
-}
-
-
-beginTransaction();
 
 $numberOfRecordsRead = 0;
+$numberOfRecordsStored = 0;
 
-$fp = fopen($fileName, 'r');
+$fp = @fopen($fileName, 'r');
+if ($fp === FALSE){
+    printf("Error opening file [%s].\n", $fileName);
+    exit();
+}
+
+beginTransaction();
 while($record = fgetcsv($fp)){
     $numberOfRecordsRead ++;
 
@@ -174,9 +234,13 @@ while($record = fgetcsv($fp)){
     }
     // Store in db;
     $result = storeInDb($dataToStore);
+    if($result == TRUE){
+        $numberOfRecordsStored ++;
+    }
 }
 fclose($fp);
 if($dry_run_flag == TRUE){
+    echo "Dry Run mode :";
     rollbackTransaction();
     exit();
 }
