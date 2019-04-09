@@ -18,6 +18,14 @@ Variations
 6: Staging Table. Use a staging table ( temp table) to upload and validate data ( catch duplicates ) prior to copy to Prod table.
     **Note Dry run this requires the use of the DB.
     **Note can be used as variation for any of the 'Read' / 'Store' variations.
+7: Stored Procedures. Use stored procedures for the creation and import of data. This is to hide the details of where data is stored.
+Data validation/Tranform could be done in the procedure, Would prequire an our parameter for errors. Use case includes the use of staging tables
+as part of the validation process.
+8: use 'Data_load' to load file directly from local storage. This can include data transforms.
+Duplicates can be handled using 'ignore' option but is unable to report on the duplicate records.
+    **Note email validation could be included where failure to validate would attempt to insert a 'Null'. This would cause an error
+    on the import with difficulties in reporting.
+
 
 Common csv error to catch.
 . Field count error. Must be exactly 3 field in record read from file.
