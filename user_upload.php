@@ -149,6 +149,36 @@ function storeInDb($data){
     return true;
 }
 
+
+/**
+ * Get Statement to Execute
+ */
+function getStatementToExecute(){
+    static $statement;
+    if(is_null($statement)) {
+        $dbHandle = getDbHandle();
+        $sql = sprintf('INSERT INTO %s 
+                          (name,surname,email)
+                          values 
+                          (?,?,?)',
+            getTableName()
+        );
+    printf("DEBUG:%s\n", $sql);
+        $statement = mysqli_stmt_init($dbHandle);
+        mysqli_stmt_prepare($statement, $sql);
+    }
+    print_r($statement);
+    return $statement;
+}
+
+function &getStatementBoundVar(){
+    $statement = getStatementToExecute();
+    $var = array('name'=>'', 'surname' =>'', 'email'=>'');
+    mysqli_stmt_bind_param($statement, 'sss', $var['name'], $var['surname'],$var['email']);
+    return $var;
+}
+
+
 /**
  * Begin Run Code
  */
@@ -156,10 +186,14 @@ function storeInDb($data){
 // Flag used to inidicate if Drt Run mode is in effect
 $dry_run_flag = false;
 
+// Statement Mode. Create a statement, and use a bound var for providing data
+$statement_mode = false;
+
 define('SHORT_OPTIONS','u:h:p:d:');
 define('LONG_OPTIONS', array('file:',
     'create',
     'dry_run',
+    'statement_mode',
     'help'));
 
 // check and use command line parameters
@@ -179,6 +213,11 @@ define('DB_DATABASE', array_key_exists('d',$options) ? $options['d'] : DB_DEFAUL
 if(array_key_exists('dry_run', $options)) {
     $dry_run_flag = true;
     echo "Dry Run mode\n";
+}
+
+if(array_key_exists('statement_mode', $options)) {
+    $statement_mode = true;
+    echo "Statement mode\n";
 }
 
 if(array_key_exists('create', $options)){
@@ -210,6 +249,12 @@ if ($fp === FALSE){
     exit();
 }
 
+if($statement_mode == TRUE){
+    echo "Getting Stement and Boud Variable\n";
+    $statmentToExecute = getStatementToExecute();
+    $boundVar = getStatementBoundVar();
+}
+
 beginTransaction();
 while($record = fgetcsv($fp)){
     $numberOfRecordsRead ++;
@@ -233,12 +278,30 @@ while($record = fgetcsv($fp)){
         continue;
     }
     // Store in db;
+    if($statement_mode == TRUE){
+//        echo "Executing Statement\n";
+        $boundVar['name'] = $dataToStore['name'];
+        $boundVar['surname'] = $dataToStore['surname'];
+        $boundVar['email'] = $dataToStore['email'];
+        mysqli_stmt_execute($statmentToExecute);
+        $errorList = mysqli_stmt_error_list($statmentToExecute);
+        if(!empty($errorList)){
+            print_r($errorList);
+            continue;
+        }
+        $numberOfRecordsStored ++;
+        continue;
+    }
     $result = storeInDb($dataToStore);
     if($result == TRUE){
         $numberOfRecordsStored ++;
     }
 }
 fclose($fp);
+if($statement_mode == TRUE){
+    mysqli_stmt_close($statmentToExecute);
+    echo "Stement closed\n";
+}
 if($dry_run_flag == TRUE){
     echo "Dry Run mode :";
     rollbackTransaction();
