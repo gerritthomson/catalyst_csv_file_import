@@ -163,18 +163,36 @@ function getStatementToExecute(){
                           (?,?,?)',
             getTableName()
         );
-    printf("DEBUG:%s\n", $sql);
         $statement = mysqli_stmt_init($dbHandle);
         mysqli_stmt_prepare($statement, $sql);
     }
-    print_r($statement);
     return $statement;
 }
 
-function &getStatementBoundVar(){
-    $statement = getStatementToExecute();
-    $var = array('name'=>'', 'surname' =>'', 'email'=>'');
-    mysqli_stmt_bind_param($statement, 'sss', $var['name'], $var['surname'],$var['email']);
+/**
+ * Create the statement bound variable.
+ * $keys is an array of key value pairs [$key=>$val] where the key is the index for the val i the type of the data.
+ *
+ * @param $statement mysqli_stmt
+ * @param $keys array of index=>typeIndicator
+ * @return mixed
+ */
+function getStatementBoundVar($statement, $keys)
+{
+    $types = '';
+    foreach ($keys as $key => $type) {
+        $var[$key] = '';
+        $types .= $type;
+    }
+    // $refarg is an array to contain the references to the indexed variable to be bound.
+    $refarg = array($statement, $types);//First two parameter of mysqli_stmt_bind_param
+
+    // Adding the references to the variable to be bound.
+    foreach ($var as $key => $value){//create array of parameters' references
+        $refarg[] =& $var[$key];
+    }
+    // bind the $var variable to the $statement
+    call_user_func_array("mysqli_stmt_bind_param", $refarg);
     return $var;
 }
 
@@ -200,7 +218,15 @@ define('LONG_OPTIONS', array('file:',
 $options = getopt(SHORT_OPTIONS, LONG_OPTIONS);
 print_r($options);
 if(array_key_exists('help', $options)){
-    printF("Usage: %s --file[filename] [--dry_run] -u[db use name] -h[db host name] -p[db password] -d[db database name] [--help]\n", __FILE__);
+    printf("Usage: %s --file[filename] [--dry_run] -u[db user name] -h[db host name] -p[db password] -d[db database name] [--statement_mode] [--help]\n", __FILE__);
+    echo "filename: name of file to import. Assumed local unless name has directory separators\n";
+    echo "db user name: name of database user to authenticate with. Must have create, drop and insert priviledges in the 'db database name' database\n";
+    echo "db host name: Host name or ip address of database host to connect to\n";
+    echo "db password: password of 'db user name' to use for authentication\n";
+    echo "db database name: name of database to use to create table for storage of data. This must exists\n";
+    echo "--dry_run: all data will be read and processed. data storage will not persist.\n";
+    echo "--statement_mode: use the more secure and faster statement mode.\n";
+    echo "--help: this help\n";
     exit;
 }
 
@@ -218,6 +244,7 @@ if(array_key_exists('dry_run', $options)) {
 if(array_key_exists('statement_mode', $options)) {
     $statement_mode = true;
     echo "Statement mode\n";
+    $dataKeys = array('name'=>'s','surname'=>'s','email'=>'s');
 }
 
 if(array_key_exists('create', $options)){
@@ -250,9 +277,9 @@ if ($fp === FALSE){
 }
 
 if($statement_mode == TRUE){
-    echo "Getting Stement and Boud Variable\n";
+    echo "Getting Statement and Bound Variable\n";
     $statmentToExecute = getStatementToExecute();
-    $boundVar = getStatementBoundVar();
+    $boundVar = getStatementBoundVar($statmentToExecute, $dataKeys);
 }
 
 beginTransaction();
@@ -279,10 +306,10 @@ while($record = fgetcsv($fp)){
     }
     // Store in db;
     if($statement_mode == TRUE){
-//        echo "Executing Statement\n";
-        $boundVar['name'] = $dataToStore['name'];
-        $boundVar['surname'] = $dataToStore['surname'];
-        $boundVar['email'] = $dataToStore['email'];
+        // set data to store into bound variable
+        foreach($dataKeys as $key=>$value){
+            $boundVar[$key] = $dataToStore[$key];
+        }
         mysqli_stmt_execute($statmentToExecute);
         $errorList = mysqli_stmt_error_list($statmentToExecute);
         if(!empty($errorList)){
@@ -292,6 +319,7 @@ while($record = fgetcsv($fp)){
         $numberOfRecordsStored ++;
         continue;
     }
+
     $result = storeInDb($dataToStore);
     if($result == TRUE){
         $numberOfRecordsStored ++;
@@ -300,7 +328,7 @@ while($record = fgetcsv($fp)){
 fclose($fp);
 if($statement_mode == TRUE){
     mysqli_stmt_close($statmentToExecute);
-    echo "Stement closed\n";
+    echo "Statement closed\n";
 }
 if($dry_run_flag == TRUE){
     echo "Dry Run mode :";
