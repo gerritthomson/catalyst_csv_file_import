@@ -35,10 +35,11 @@ Common csv error to catch.
 
 . Zero records.
 
-I implemented Variation 1 using a Consturcted sql statement string and a re-usable mysqli Statement.
+I added a command line parameter '-d' to provide the name of database to use for the creation of the user table.
+
+I implemented Variation 1 using a Constructed sql statement string and as a re-usable mysqli Statement (--statement_mode).
 
 I also implemented variation 5 in the file 'user_upload_batch.php', catching duplicate email addresses in php before storing in batches.
 I attempted to let the sql server handle rejection of duplicates but this resulted in batches being rejected.
-I determined that removal of duplcate data from a batch for resubmitting to the server for possible rejection was untennable.
+I determined that removal of duplicate data from a batch for resubmitting to the server for possible rejection was untennable.
 
-I added a command line parameter '-d' to provide the name of database to use for the creation of the user table.
