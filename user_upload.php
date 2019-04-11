@@ -129,6 +129,25 @@ function rollbackTransaction(){
  */
 function storeInDb($data){
     $dbHandle = getDbHandle();
+    if(defined('STATEMENT_MODE')){
+        $dataKeys = STATEMENT_DATA_KEYS;
+        $statmentToExecute = getStatementToExecute();
+        $boundVar = getStatementBoundVar($statmentToExecute, $dataKeys);
+        // set data to store into bound variable
+        foreach($dataKeys as $key=>$value){
+            $boundVar[$key] = $data[$key];
+        }
+        mysqli_stmt_execute($statmentToExecute);
+        $errorList = mysqli_stmt_error_list($statmentToExecute);
+        if(!empty($errorList)){
+            print_r($errorList);
+            return false;
+        }
+        return true;
+    }
+
+
+
     $sql = sprintf('INSERT INTO %s 
                           (name,surname,email)
                           values 
@@ -178,24 +197,30 @@ function getStatementToExecute(){
  */
 function getStatementBoundVar($statement, $keys)
 {
-    $types = '';
-    foreach ($keys as $key => $type) {
-        $var[$key] = '';
-        $types .= $type;
-    }
-    // $refarg is an array to contain the references to the indexed variable to be bound.
-    $refarg = array($statement, $types);//First two parameter of mysqli_stmt_bind_param
+    static $boundVariable;
+    if (is_null($boundVariable)) {
+        $types = '';
+        foreach ($keys as $key => $type) {
+            $boundVariable[$key] = '';
+            $types .= $type;
+        }
+        // $refarg is an array to contain the references to the indexed variable to be bound.
+        $refarg = array($statement, $types);//First two parameter of mysqli_stmt_bind_param
 
-    // Adding the references to the variable to be bound.
-    foreach ($var as $key => $value){//create array of parameters' references
-        $refarg[] =& $var[$key];
+        // Adding the references to the variable to be bound.
+        foreach ($boundVariable as $key => $value) {//create array of parameters' references
+            $refarg[] =& $boundVariable[$key];
+        }
+        // bind the $var variable to the $statement
+        call_user_func_array("mysqli_stmt_bind_param", $refarg);
     }
-    // bind the $var variable to the $statement
-    call_user_func_array("mysqli_stmt_bind_param", $refarg);
-    return $var;
+    return $boundVariable;
 }
 
-
+function closeStatement(){
+    $statement = getStatementToExecute();
+    mysqli_stmt_close($statement);
+}
 /**
  * Begin Run Code
  */
@@ -241,9 +266,10 @@ if(array_key_exists('dry_run', $options)) {
 }
 
 if(array_key_exists('statement_mode', $options)) {
+    define('STATEMENT_MODE',TRUE);
     $statement_mode = true;
     echo "Statement mode\n";
-    $dataKeys = array('name'=>'s','surname'=>'s','email'=>'s');
+    define('STATEMENT_DATA_KEYS', array('name'=>'s','surname'=>'s','email'=>'s'));
 }
 
 if(array_key_exists('create', $options)){
@@ -275,12 +301,6 @@ if ($fp === FALSE){
     exit();
 }
 
-if($statement_mode == TRUE){
-    echo "Getting Statement and Bound Variable\n";
-    $statmentToExecute = getStatementToExecute();
-    $boundVar = getStatementBoundVar($statmentToExecute, $dataKeys);
-}
-
 beginTransaction();
 while($record = fgetcsv($fp)){
     $numberOfRecordsRead ++;
@@ -303,29 +323,14 @@ while($record = fgetcsv($fp)){
         continue;
     }
     // Store in db;
-    if($statement_mode == TRUE){
-        // set data to store into bound variable
-        foreach($dataKeys as $key=>$value){
-            $boundVar[$key] = $dataToStore[$key];
-        }
-        mysqli_stmt_execute($statmentToExecute);
-        $errorList = mysqli_stmt_error_list($statmentToExecute);
-        if(!empty($errorList)){
-            print_r($errorList);
-            continue;
-        }
-        $numberOfRecordsStored ++;
-        continue;
-    }
-
     $result = storeInDb($dataToStore);
     if($result == TRUE){
         $numberOfRecordsStored ++;
     }
 }
 fclose($fp);
-if($statement_mode == TRUE){
-    mysqli_stmt_close($statmentToExecute);
+if(defined('STATEMENT_MODE')){
+    closeStatement();
     echo "Statement closed\n";
 }
 if($dry_run_flag == TRUE){
