@@ -200,22 +200,19 @@ function getStatementBoundVar($statement, $keys)
 }
 
 /**
- * find and remove duplate records based on email data
+ * find and remove duplicate records based on email data
  * @param $data
  */
 function removeDuplicateEmails($data){
     $emails = array_column($data, 'email');
     $emailCount = array_count_values($emails);
-    print_r($emailCount);
-    $justDuplicates = array_filter($emailCount, function($data,$key){
-        print_r($key);
-        print_r($data);
-            if($data > 1){
-                return true;
-            }
-            return false;
-    },ARRAY_FILTER_USE_BOTH);
-    print_r($justDuplicates);
+    $justDuplicates = array_filter($emailCount, function($data){
+                                            if($data > 1){
+                                                return true;
+                                            }
+                                            return false;
+                                    }
+                                );
     $revData = array_reverse($data);
     $revEmails = array_reverse($emails);
     foreach($justDuplicates as $key=>$value){
