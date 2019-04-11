@@ -4,7 +4,7 @@ Db table:
 name, surname , email
 Email is unique.
 
-Variations
+Some Possible Variations
 1: Get one => Store one. Simple fgetcsv direct mysql insert. Catch error on Email primary key duplicate.
    **Note: unable to perform full dry run if using the DB for duplicate primary key detection.
 2: Use generator, Get One => store One. Encapsulate fgetcsv into generator function to iterate data from csv file. Store each. Catch error on Email primary key.
@@ -35,3 +35,10 @@ Common csv error to catch.
 
 . Zero records.
 
+I implemented Variation 1 using a Consturcted sql statement string and a re-usable mysqli Statement.
+
+I also implemented variation 5 in the file 'user_upload_batch.php', catching duplicate email addresses in php before storing in batches.
+I attempted to let the sql server handle rejection of duplicates but this resulted in batches being rejected.
+I determined that removal of duplcate data from a batch for resubmitting to the server for possible rejection was untennable.
+
+I added a command line parameter '-d' to provide the name of database to use for the creation of the user table.
